@@ -48,13 +48,27 @@ class LSM:
         self.liquid_weight_matrix = np.zeros((self.num_of_neurons, self.num_of_neurons))
         self.C = {'EE': 0.6,'EI': 1,'II': 0.2,'IE': 1}
         self.lamda = {'EE': 3,'EI': 3,'II': 3,'IE': 3}
-        self.synaptic_strength = {'EE': 3,'EI': 3,'II': 1,'IE': 4}
+        self.synaptic_strength = {'EE': 3,'EI': 3,'II': -1,'IE': -4}    #Inhibitory synapses are given negetive strengths
+        probability_of_connection = []
         for n_1 in self.liquid_layer_neurons:
             temp = []
             for n_2 in self.liquid_layer_neurons:
                 connection_type = self.get_neuron_type[n_1]+self.get_neuron_type[n_2]
                 d = np.sqrt(((self.neuron_to_coordinate[n_1][0]-self.neuron_to_coordinate[n_2][0])**2)+((self.neuron_to_coordinate[n_1][1]-self.neuron_to_coordinate[n_2][1])**2))
-                temp.append(d)
-                #p_conn = C*np.exp((-d/lamda)**2)
-            print(temp)
+                prob = self.C[connection_type]*np.exp((-d/self.lamda[connection_type])**2)
+                temp.append(prob)
+            probability_of_connection.append(temp)
+        #normalize probability of connections
+        probability_of_connection /= np.max(probability_of_connection)
+        for i,n_1 in enumerate(self.liquid_layer_neurons):
+            for j,n_2 in enumerate(self.liquid_layer_neurons):
+                rand = np.random.uniform(0.000, 1.000, 1)
+                if rand < probability_of_connection[i][j]:
+                    connection_type = self.get_neuron_type[n_1]+self.get_neuron_type[n_2]
+                    self.liquid_weight_matrix[i][j] = self.synaptic_strength[connection_type]
 
+        print(self.liquid_weight_matrix)
+
+        plt.figure(figsize=(10,10), dpi=200)
+        plt.imshow(self.liquid_weight_matrix, cmap='gray')
+        plt.show()

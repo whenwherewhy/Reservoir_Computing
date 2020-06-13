@@ -1,7 +1,7 @@
 class LIF:
     def __init__(self, 
-                threshold=1, 
-                dt=0.125,
+                threshold=0.5, 
+                dt=1,
                 Vres=0,
                 tau_ref=4,
                 Rm=1,
