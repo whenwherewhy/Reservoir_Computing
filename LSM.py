@@ -72,3 +72,5 @@ class LSM:
         plt.figure(figsize=(10,10), dpi=200)
         plt.imshow(self.liquid_weight_matrix, cmap='gray')
         plt.show()
+        
+
