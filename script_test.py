@@ -22,19 +22,22 @@ plt.plot([x/100 for x in spikes])
 plt.show()
 '''
 
-sim_time = 200
+sim_time = 500
 input_dim = 20
-w, h = 20,20 
+w, h = 10,10 
 
-lsm = LSM(input_size = input_dim, output_size=5, width=w, height=h)
+lsm = LSM(input_size = input_dim, lamda = 20, output_size=5, width=w, height=h)
 
-ST_input = np.random.randint(0,2,size=(input_dim,int(sim_time)))*20
 #x = np.ones((input_dim, int(sim_time/2)))*20
 #y = np.zeros((input_dim, int(sim_time/2)))
-#ST_input = np.hstack((x,y))
 
-act, states = lsm.get_activation(ST_input=ST_input, simulation_time=sim_time)
+x = np.random.randint(0,2,size=(input_dim,int(sim_time/2)))*20
+y = np.random.randint(0,2,size=(input_dim,int(sim_time/2)))*40
+ST_input = np.hstack((x,y))
 
+act = lsm.get_activation(ST_input=ST_input, simulation_time=sim_time)
+
+'''
 for t,s in enumerate(states):
 	try:
 		s = s.reshape(w,h)
@@ -44,6 +47,7 @@ for t,s in enumerate(states):
 	except:
 		break
 plt.show()
-
+'''
+print(act.shape)
 plt.imshow(act.T)
 plt.show()
