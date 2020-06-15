@@ -10,7 +10,7 @@ class LSM:
         self.output_size = output_size
 
         self.num_of_neurons = self.width * self.height
-        self.liquid_layer_neurons = [LIF() for _ in range(self.num_of_neurons)]
+        self.liquid_layer_neurons = [LIF(tau_m=1) for _ in range(self.num_of_neurons)]
         
         #create dictioanries : neurons <=> coordinates
         self.neuron_to_coordinate = {}
@@ -47,8 +47,8 @@ class LSM:
         #create liquid layer weight matrix
         self.liquid_weight_matrix = np.zeros((self.num_of_neurons, self.num_of_neurons))
         self.C = {'EE': 0.6,'EI': 1,'II': 0.2,'IE': 1}
-        self.lamda = {'EE': 3,'EI': 3,'II': 3,'IE': 3}
-        self.synaptic_strength = {'EE': 3,'EI': 3,'II': -1,'IE': -4}    #Inhibitory synapses are given negetive strengths
+        self.lamda = {'EE': 10,'EI': 10,'II': 10,'IE': 10}
+        self.synaptic_strength = {'EE': 0.3,'EI': 0.3,'II': -0.1,'IE': -0.4}    #Inhibitory synapses are given negetive strengths
         probability_of_connection = []
         for n_1 in self.liquid_layer_neurons:
             temp = []
@@ -68,9 +68,40 @@ class LSM:
                     self.liquid_weight_matrix[i][j] = self.synaptic_strength[connection_type]
 
         print(self.liquid_weight_matrix)
-
+        '''
         plt.figure(figsize=(10,10), dpi=200)
         plt.imshow(self.liquid_weight_matrix, cmap='gray')
         plt.show()
+        '''
+    
+
+    def get_activation(self, ST_input, simulation_time=10000):
         
+        N_t = np.zeros((len(self.liquid_layer_neurons),)) #state vector
+        activation = [] #activation of LSM over entire simulation time
+        states = []
+
+        for t in range(simulation_time):
+            input_current = np.dot(self.input_weight_matrix, ST_input[:,t])
+            past_current = np.dot(self.liquid_weight_matrix.T, N_t)
+            total_current = input_current + past_current
+            temp_activation = []
+
+            for idx, neuron in enumerate(self.liquid_layer_neurons):
+                new_Vmem = neuron.update(total_current[idx], t)
+                
+                if new_Vmem == neuron.V_spike:
+                    temp_activation.append(1)
+                else:
+                    temp_activation.append(0)
+
+            N_t = temp_activation
+
+            activation.append(np.asarray(temp_activation))
+            states.append(N_t)            
+
+
+        return np.asarray(activation), np.asarray(states)
+
+
 
