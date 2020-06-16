@@ -3,6 +3,7 @@ from neuron_models import LIF
 import matplotlib.pyplot as plt
 import numpy as np
 
+#Single neuron simulation---------------------------------------------------------------
 '''
 neuron = LIF(tau_m=10)
 
@@ -22,9 +23,10 @@ plt.plot([x/100 for x in spikes])
 plt.show()
 '''
 
+#LSM simulation----------------------------------------------------------------------------
 sim_time = 500
 input_dim = 20
-w, h = 10,10 
+w, h = 3,3
 
 lsm = LSM(input_size = input_dim, lamda = 20, output_size=5, width=w, height=h)
 
@@ -48,6 +50,7 @@ for t,s in enumerate(states):
 		break
 plt.show()
 '''
+
 print(act.shape)
 plt.imshow(act.T)
 plt.show()

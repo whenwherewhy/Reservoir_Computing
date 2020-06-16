@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 from neuron_models import LIF
 
 class LSM:
-    def __init__(self, input_size, width, height, output_size, lamda=5, primary_to_auxiliary_ratio=0.6, input_feature_selection_sparsity=0.6):
+    def __init__(self, input_size, width, height, output_size, 
+                 lamda=5, primary_to_auxiliary_ratio=0.6, input_feature_selection_sparsity=0.6):
         self.input_size = input_size
         self.width = width
         self.height = height
@@ -48,7 +49,7 @@ class LSM:
         self.liquid_weight_matrix = np.zeros((self.num_of_neurons, self.num_of_neurons))
         self.C = {'EE': 0.6,'EI': 1,'II': 0.2,'IE': 1}
         self.lamda = {'EE': lamda,'EI': lamda,'II': lamda,'IE': lamda}
-        self.synaptic_strength = {'EE': 0.3,'EI': 0.3,'II': -0.1,'IE': -0.4}    #Inhibitory synapses are given negetive strengths
+        self.synaptic_strength = {'EE': 3,'EI': 3,'II': -1,'IE': -4}    #Inhibitory synapses are given negetive strengths
         probability_of_connection = []
         for n_1 in self.liquid_layer_neurons:
             temp = []
@@ -66,8 +67,24 @@ class LSM:
                 if rand < probability_of_connection[i][j]:
                     connection_type = self.get_neuron_type[n_1]+self.get_neuron_type[n_2]
                     self.liquid_weight_matrix[i][j] = self.synaptic_strength[connection_type]
+        #Normalize sum of excitory and sum of inhibitory synapses for each neuron in liquid layer
+        for c in range(self.liquid_weight_matrix.shape[1]):
+            pre_synapses = self.liquid_weight_matrix[:,c]
+            total_excitory_syn_strength, total_inhibitory_syn_strength = 0, 0
+            for s in pre_synapses:
+                if s>=0:
+                    total_excitory_syn_strength += s
+                else:
+                    total_inhibitory_syn_strength +=s
+            for s_idx in range(pre_synapses.shape[0]):
+                if pre_synapses[s_idx]>=0:
+                    pre_synapses[s_idx] /= total_excitory_syn_strength
+                else:
+                    pre_synapses[s_idx] /= -total_inhibitory_syn_strength
+            self.liquid_weight_matrix[:,c] = pre_synapses[:]
 
         print(self.liquid_weight_matrix)
+        
         '''
         plt.figure(figsize=(10,10), dpi=200)
         plt.imshow(self.liquid_weight_matrix, cmap='gray')
