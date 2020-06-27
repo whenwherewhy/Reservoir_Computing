@@ -3,7 +3,6 @@ from neuron_models import LIF
 import matplotlib.pyplot as plt
 import numpy as np
 from environment import Environment
-from visualization import Visualization
 
 #Single neuron simulation---------------------------------------------------------------
 '''
@@ -58,24 +57,21 @@ plt.show()
 '''
 
 #Environment Simulation------------------------------------------------------------------
-num_objects = 2
+num_objects = 10
 W = 100
 
 env = Environment(W, W, num_objects)
 
 env.objects[:,0:2] = np.random.randint(size=(num_objects,2), low=0, high=W) #X,y
 env.objects[:,2:4] = np.random.randint(size=(num_objects,2), low=-2, high=3)  #Vx, Vy
-env.objects[:,-1:] = np.random.randint(size=(num_objects,1), low=0, high=10)  #R
+env.objects[:,-1:] = np.random.randint(size=(num_objects,1), low=10, high=400)  #Area
 
 env.food[:] = [50, 50, 1, 1]
-
-viz = Visualization(env.objects, env.food, num_objects)
 
 
 while True:
 
 	env.objects[:,2:4] = np.random.randint(size=(num_objects,2), low=-2, high=3)  #Vx, Vy
+	env.food[-2:] = np.random.randint(size=(2,), low=-2, high=3)  #Vx, Vy
 
 	env.step()
-
-	viz.step(env.objects, env.food)
