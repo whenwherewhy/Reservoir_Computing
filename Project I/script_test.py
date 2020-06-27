@@ -58,20 +58,10 @@ plt.show()
 
 #Environment Simulation------------------------------------------------------------------
 num_objects = 10
-W = 100
+W = 50
 
 env = Environment(W, W, num_objects)
 
-env.objects[:,0:2] = np.random.randint(size=(num_objects,2), low=0, high=W) #X,y
-env.objects[:,2:4] = np.random.randint(size=(num_objects,2), low=-2, high=3)  #Vx, Vy
-env.objects[:,-1:] = np.random.randint(size=(num_objects,1), low=10, high=400)  #Area
-
-env.food[:] = [50, 50, 1, 1]
-
-
 while True:
 
-	env.objects[:,2:4] = np.random.randint(size=(num_objects,2), low=-2, high=3)  #Vx, Vy
-	env.food[-2:] = np.random.randint(size=(2,), low=-2, high=3)  #Vx, Vy
-
-	env.step()
+	env.step(forward=np.random.randint(0,3,1), rotate=np.random.uniform(-3.14,3.14))
