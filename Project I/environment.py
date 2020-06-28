@@ -11,12 +11,13 @@ class Environment:
         self.objects = np.zeros((self.max_objects,5)) #(index of object, [x,y,vx,vy,r])
         self.food = np.zeros((3,))  # (x,y,r) #Considering single food at any instant
         self.agent = np.zeros((3,)) # (x,y,theta)
+        self.agent_health = 50
         self.agent_object_distances = []
 
         self.objects[:,0:2] = np.random.randint(size=(self.max_objects,2), low=-W, high=W) #X,y
         self.objects[:,2:4] = np.random.randint(size=(self.max_objects,2), low=-2, high=3)  #Vx, Vy
         self.objects[:,-1:] = np.random.randint(size=(self.max_objects,1), low=5, high=25)  #r 
-        self.food[:] = [np.random.randint(-W, W, 1), np.random.randint(-H, H, 1), np.random.randint(0,100,1)]
+        self.food[:] = [np.random.randint(-W, W, 1), np.random.randint(-H, H, 1), 50]
         self.agent[:] = np.asarray([np.random.randint(-W, W, 1), np.random.randint(-H, H, 1),0])
 
     def update_objects(self):
@@ -49,29 +50,23 @@ class Environment:
         die = False
         if np.absolute(self.agent[0]) >= self.window_w or np.absolute(self.agent[1]) >= self.window_h:
             die = True
-            print('out')
+            #print('out')
         elif np.min(self.agent_object_distances) <= self.objects[np.argmin(self.agent_object_distances), -1]/4:
             die = True   
-            print('collide', np.min(self.agent_object_distances), self.objects[np.argmin(self.agent_object_distances), -1]/4)
-
-        #elif np.min(self.agent_object_distances) < 2:
-        #    die=True
+            #print('collide', np.min(self.agent_object_distances), self.objects[np.argmin(self.agent_object_distances), -1]/4)
 
         return die
+
+    def agent_eats_food(self):
+        if np.sqrt((self.agent[0]-self.food[0])**2 + (self.agent[1]-self.food[1])**2) < 10:
+            return True
+        else:
+            return False
+
+    def allocate_new_food(self):
+
+        self.food[:] = [np.random.randint(-self.window_w, self.window_w, 1), np.random.randint(-self.window_h, self.window_h, 1), 50]
     
-    def step(self, forward=0, rotate=0): 
-        self.visualize_simulation()
-
-        self.update_objects()
-        self.update_agent(forward=forward, rotate=rotate)
-        self.update_agent_object_distances()
-        print(self.agent_object_distances)
-
-        if self.agent_dies():
-            plt.show()
-            self.agent[:] = np.asarray([np.random.randint(-self.window_w, self.window_w, 1), np.random.randint(-self.window_h, self.window_h, 1),0])
-
-
     def visualize_simulation(self):
         
         plt.xlim(-self.window_w, self.window_w)
@@ -85,6 +80,28 @@ class Environment:
 
         plt.pause(0.0001)
         plt.clf()
+
+    def step(self, forward=0, rotate=0): 
+        self.visualize_simulation()
+
+        self.update_objects()
+        self.update_agent(forward=forward, rotate=rotate)
+        self.update_agent_object_distances()
+
+        if self.agent_dies():
+            self.agent_health = 0
+            #optional
+            self.agent[:] = np.asarray([np.random.randint(-self.window_w, self.window_w, 1), np.random.randint(-self.window_h, self.window_h, 1),0])
+
+        if self.agent_eats_food():
+            self.agent_health = 50
+            self.allocate_new_food()
+        else:
+            self.agent_health -= 1
+
+        #Prepare return info
+
+        print(self.agent_health)
 
 
     

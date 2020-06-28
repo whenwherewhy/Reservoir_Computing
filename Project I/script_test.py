@@ -13,11 +13,11 @@ I = 2
 neuron.initialize()
 activation = []
 
-for t in range(10000):	#ms
-	s = np.random.randint(0,2,1)*10	#{0,10} mV
-	print(s)
-	Vmem = neuron.update(s, t)
-	activation.append(Vmem)
+for t in range(10000):  #ms
+    s = np.random.randint(0,2,1)*10 #{0,10} mV
+    print(s)
+    Vmem = neuron.update(s, t)
+    activation.append(Vmem)
 
 plt.plot(activation)
 plt.plot([x/100 for x in spikes])
@@ -41,13 +41,13 @@ ST_input = np.hstack((x,y))
 act = lsm.get_activation(ST_input=ST_input, simulation_time=sim_time)
 
 for t,s in enumerate(states):
-	try:
-		s = s.reshape(w,h)
-		plt.imshow(s)
-		plt.pause(0.001)
-		print(t)
-	except:
-		break
+    try:
+        s = s.reshape(w,h)
+        plt.imshow(s)
+        plt.pause(0.001)
+        print(t)
+    except:
+        break
 plt.show()
 '''
 '''
@@ -57,11 +57,17 @@ plt.show()
 '''
 
 #Environment Simulation------------------------------------------------------------------
-num_objects = 10
-W = 50
+import pyautogui as gui
 
-env = Environment(W, W, num_objects)
+num_objects = 10
+W,H = 400, 300
+
+env = Environment(W, H, num_objects)
 
 while True:
+    x,y = gui.position() #Mouse coordinates
+    
+    r,f  = np.interp(x,[0,1000],[-0.5, 0.5]), np.interp(y,[0,700],[5, 0])
+    print(f,r)
 
-	env.step(forward=np.random.randint(0,3,1), rotate=np.random.uniform(-3.14,3.14))
+    env.step(forward=f, rotate=r)
