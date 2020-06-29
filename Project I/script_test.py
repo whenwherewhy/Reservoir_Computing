@@ -60,14 +60,13 @@ plt.show()
 import pyautogui as gui
 
 num_objects = 10
-W,H = 400, 300
+W,H = 100, 100
 
 env = Environment(W, H, num_objects)
 
-while True:
-    x,y = gui.position() #Mouse coordinates
+while gui.position() != (0,0):
     
+    x,y = gui.position() #Mouse coordinates
     r,f  = np.interp(x,[0,1000],[-0.5, 0.5]), np.interp(y,[0,700],[5, 0])
-    print(f,r)
 
-    env.step(forward=f, rotate=r)
+    R_o, sin_o, cos_o, R_f, sin_f, cos_f, sin_h, cos_h, health = env.step(forward=f, rotate=r)
