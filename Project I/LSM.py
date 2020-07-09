@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from neuron_models import LIF
 
 class LSM:
-    def __init__(self, input_size, width, height, output_size, lamda=5, primary_to_auxiliary_ratio=0.6, input_feature_selection_sparsity=0.6, neuron_type_ratio=0.8, stp_alpha = 0.01, stp_beta = 0.3):
+    def __init__(self, input_size, width, height, output_size, lamda=30, primary_to_auxiliary_ratio=0.6, input_feature_selection_sparsity=0.6, neuron_type_ratio=0.8, stp_alpha = 0.01, stp_beta = 0.3):
         self.input_size = input_size
         self.width = width
         self.height = height
