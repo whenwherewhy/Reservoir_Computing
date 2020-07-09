@@ -179,8 +179,9 @@ class Environment:
         #Agent's heading direction info
         sin_h, cos_h = self.get_agent_direction()
         #Agent's health 
-        health = self.agent_health
+        reward = self.agent_health - self.prev_health
+        self.prev_health = self.agent_health
+        
+        done = True if self.agent_health == 0 else False
 
-        return R_o, sin_o, cos_o, R_f, sin_f, cos_f, sin_h, cos_h, health
-    
-
+        return [R_o, sin_o, cos_o, R_f, sin_f, cos_f, sin_h, cos_h], reward, done

@@ -8,57 +8,23 @@ from environment import Environment
 '''
 neuron = LIF(tau_m=10)
 
-I = 2
+I = 200
 
 neuron.initialize()
 activation = []
 
-for t in range(10000):  #ms
-    s = np.random.randint(0,2,1)*10 #{0,10} mV
-    print(s)
-    Vmem = neuron.update(s, t)
-    activation.append(Vmem)
+for t in range(88):
+    activation.append(neuron.update(I))
 
+neuron.initialize()
+
+for t in range(100):
+    activation.append(neuron.update(I))
+
+print(activation)
 plt.plot(activation)
-plt.plot([x/100 for x in spikes])
 plt.show()
 '''
-
-#LSM simulation----------------------------------------------------------------------------
-sim_time = 500
-input_dim = 20
-w, h = 6, 6
-
-lsm = LSM(input_size = input_dim, lamda = 30, output_size=5, width=w, height=h, stp_alpha=0.01, stp_beta=0.3)
-
-#x = np.ones((input_dim, int(sim_time/2)))*20
-#y = np.zeros((input_dim, int(sim_time/2)))
-
-#x = np.random.randint(0,2,size=(input_dim,int(sim_time/2)))*20
-#y = np.random.randint(0,2,size=(input_dim,int(sim_time/2)))*40
-
-x = np.random.normal(loc = 5, scale = 1, size=(input_dim,int(sim_time/2))) * 4
-y = np.random.uniform(0, 1, size=(input_dim,int(sim_time/2))) * 20
-
-ST_input = np.hstack((x,y))
-
-act = lsm.get_activation(ST_input=ST_input, simulation_time=sim_time)
-'''
-for t,s in enumerate(act):
-    try:
-        s = s.reshape(w,h)
-        plt.imshow(s)
-        plt.pause(0.001)
-        print(t)
-    except:
-        break
-plt.show()
-
-'''
-print(act.shape)
-plt.imshow(act.T)
-plt.show()
-
 
 #Environment Simulation------------------------------------------------------------------
 '''
@@ -74,5 +40,44 @@ while gui.position() != (0,0):
     x,y = gui.position() #Mouse coordinates
     r,f  = np.interp(x,[0,1000],[-0.5, 0.5]), np.interp(y,[0,700],[5, 0])
 
-    R_o, sin_o, cos_o, R_f, sin_f, cos_f, sin_h, cos_h, health = env.step(forward=f, rotate=r)
+    state, reward, done = env.step(forward=f, rotate=r)
 '''
+
+#LSM simulation----------------------------------------------------------------------------
+
+sim_time = 600
+input_dim = 20
+w, h = 10, 10
+
+lsm = LSM(input_size = 4, lamda = 30, output_size=2, width=w, height=h, stp_alpha=0.01, stp_beta=0.3)
+
+x1 = np.zeros((int(sim_time/3),))
+x1[np.random.randint(0, int(sim_time/3), 50)] = 30
+x2 = np.zeros((int(sim_time/3),))
+x2[np.random.randint(0, int(sim_time/3), 150)] = 30
+x3 = np.zeros((int(sim_time/3),))
+x3[np.random.randint(0, int(sim_time/3), 100)] = 30
+
+ST_input = np.hstack((x1,x2,x3))
+ST_input = np.vstack((ST_input, ST_input, ST_input, ST_input))
+
+lsm.reset()
+activation = []
+N_t = []
+
+for t in range(sim_time):
+    activation.append(lsm.predict(ST_input[:,t]))
+    N_t.append(lsm.N_t)
+activation = np.asarray(activation)
+N_t = np.asarray(N_t)
+
+#print(lsm.summary())
+#print(N_t)
+#plt.imshow(N_t)
+#plt.show()
+
+plt.subplot(2,1,1)
+plt.imshow(ST_input)
+plt.subplot(2,1,2)
+plt.plot(activation)
+plt.show()
