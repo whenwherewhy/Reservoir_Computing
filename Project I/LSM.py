@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from neuron_models import LIF
+from keras.layers import Dense, Input
+from keras.models import Model
 
 class LSM:
     def __init__(self, input_size, width, height, output_size, lamda=30, primary_to_auxiliary_ratio=0.6, input_feature_selection_sparsity=0.6, neuron_type_ratio=0.8, stp_alpha = 0.01, stp_beta = 0.3):
@@ -96,24 +98,25 @@ class LSM:
             self.liquid_weight_matrix[:,c] = pre_synapses[:]      
 
         #Read-Out layer
+        self.readout_network = self.get_readout_network()
+        '''
         self.readout_layer_neurons = [LIF(tau_m=1, Vth=99999) for _ in range(self.output_size)]
         self.output_weight_matrix = np.random.uniform(-1, 1, size=(self.output_size, self.num_of_liquid_layer_neurons))
         self.readout_activation = np.zeros((self.output_size,))
+        '''
 
-        '''
-        plt.figure(figsize=(10,10), dpi=200)
-        plt.imshow(self.liquid_weight_matrix, cmap='gray')
-        plt.show()
-        '''
-    
     def reset(self):
         #Reset Neurons
         for neuron in self.liquid_layer_neurons:
             neuron.initialize()
+        '''
+        #Reset Reaout Neurons
+        for neuron in self.readout_layer_neurons:
+            neuron.initialize()
+        '''
         #Reset state vectors
         self.N_t = np.zeros((self.num_of_liquid_layer_neurons,)) #state vector
         self.S_t = np.ones((self.num_of_liquid_layer_neurons,)) #STP vector
-        self.readout_activation = np.zeros((self.num_of_liquid_layer_neurons,)) #Output activation vector
 
     def summary(self):
         print('Input dimension: ', self.input_size)
@@ -121,6 +124,17 @@ class LSM:
         print('Liquid layer connectivity shape: ', self.liquid_weight_matrix.shape)
         print('Output size: ', self.output_size)
         print('Output matrix shape: ', self.output_weight_matrix.shape)
+
+    def get_readout_network(self):
+
+        x_in = Input(shape=(self.num_of_liquid_layer_neurons,))
+        x = Dense(32, activation='relu', kernel_initializer='he_uniform')(x_in)
+        x = Dense(self.output_size, activation='linear',kernel_initializer='he_uniform')(x)
+
+        model = Model(x_in, x)
+        model.compile(loss='mse', optimizer='adam', metrics=['accuracy'])
+
+        return model 
 
     def get_complete_activation(self, ST_input, simulation_time=10000):
         
@@ -151,7 +165,7 @@ class LSM:
 
         return np.asarray(activation)
 
-    def predict(self, input_state):
+    def predict_(self, input_state):
         input_current = np.dot(self.input_weight_matrix, input_state)
         past_current = np.dot(self.liquid_weight_matrix.T, self.N_t) 
         total_current = input_current + past_current
@@ -177,5 +191,43 @@ class LSM:
 
         return self.readout_activation
 
+    def predict(self, input_state, output='q_values'):
+        activation = [] #activation of LSM over entire simulation time
+
+        for t in range(input_state.shape[1]):
+            
+            input_current = np.dot(self.input_weight_matrix, input_state[:,t])
+            past_current = np.dot(self.liquid_weight_matrix.T, self.N_t) 
+            total_current = input_current + past_current
+            
+            temp_activation = []
+            for idx, neuron in enumerate(self.liquid_layer_neurons):
+                
+                new_Vmem = neuron.update(total_current[idx])
+                
+                if new_Vmem == neuron.V_spike:
+                    temp_activation.append(1)
+                else:
+                    temp_activation.append(0)
+
+            self.N_t = np.asarray(temp_activation) * self.S_t              #Modulate output amplitude using STP protocol
+            self.S_t = self.S_t - (self.stp_alpha*(self.N_t - self.stp_beta))
+
+            activation.append(self.N_t)
+        
+        activation = np.asarray(activation).T   #Shape : N x T
+
+        #Calculate average firing rate of each neuron during the entire input duration
+        activation = np.asarray([np.sum(activation[n,:])/input_state.shape[1] for n in range(activation.shape[0])])
+
+        #Output
+        if output == 'q_values':
+            #Feed forward the obtained activations into Q_network
+            q_values = self.readout_network.predict(np.expand_dims(activation, axis=0))
+            return q_values
+
+        elif output == 'lsm_state':
+            #Return average firing rate of each liquid layer neuron
+            return activation
 
 

@@ -65,12 +65,16 @@ lsm.reset()
 activation = []
 N_t = []
 
+act = lsm.predict(ST_input)
+print(act.shape)
+print(act)
+'''
 for t in range(sim_time):
     activation.append(lsm.predict(ST_input[:,t]))
     N_t.append(lsm.N_t)
 activation = np.asarray(activation)
 N_t = np.asarray(N_t)
-
+'''
 #print(lsm.summary())
 #print(N_t)
 #plt.imshow(N_t)
