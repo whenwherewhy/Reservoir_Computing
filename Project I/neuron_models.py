@@ -46,8 +46,23 @@ class LIF:
                 self.ref = False
 
         return self.Vm
+
+    def RL_LSM_update(self, I): #Uses the update equation provided in the RL_LSM paper
+        if not self.ref:
+            self.Vm = self.Vm + ((((self.Vres - self.Vm)/self.tau_m) + I) * self.dt)
+            if self.Vm >= self.Vth:
+                self.Vm = self.V_spike
+                self.ref = True
+                self.refraction_counter = self.tau_ref
+        else:
+            self.Vm = self.Vres
+            self.refraction_counter -= 1
+            if self.refraction_counter <= 0:
+                self.ref = False
+
+        return self.Vm
             
-    def initialize(self):
+    def reset(self):
         self.Vm = self.Vres
         self.ref = False
         self.refraction_counter = -1         

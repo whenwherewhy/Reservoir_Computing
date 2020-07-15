@@ -1,8 +1,9 @@
-from LSM import LSM
+from LSM_v2 import LSM
 from neuron_models import LIF
 import matplotlib.pyplot as plt
 import numpy as np
 from environment import Environment
+from spike_encoding import spike_encoding
 
 #Single neuron simulation---------------------------------------------------------------
 '''
@@ -43,8 +44,8 @@ while gui.position() != (0,0):
     state, reward, done = env.step(forward=f, rotate=r)
 '''
 
-#LSM simulation----------------------------------------------------------------------------
-
+#LSM V1 simulation----------------------------------------------------------------------------
+'''
 sim_time = 600
 input_dim = 20
 w, h = 10, 10
@@ -69,6 +70,7 @@ act = lsm.predict(ST_input)
 print(act.shape)
 print(act)
 '''
+'''
 for t in range(sim_time):
     activation.append(lsm.predict(ST_input[:,t]))
     N_t.append(lsm.N_t)
@@ -80,8 +82,26 @@ N_t = np.asarray(N_t)
 #plt.imshow(N_t)
 #plt.show()
 
-plt.subplot(2,1,1)
-plt.imshow(ST_input)
-plt.subplot(2,1,2)
-plt.plot(activation)
+#Poisson Rate coding simulation----------------------------------------------------------------------------
+
+
+encoder = spike_encoding(scheme='poisson_rate_coding')
+a = np.asarray([200, 100, 50, 150, 255])
+s = encoder.encode(np.expand_dims(a, axis=-1))
+
+#LSM V2 simulation----------------------------------------------------------------------------
+
+lsm = LSM(5,3,3,3,2)
+
+lsm.reset_states()
+activation = lsm.predict(s*50, output='ST_lsm_state')
+print(activation.shape)
+plt.imshow(activation)
 plt.show()
+
+
+lsm.reset_states()
+activation = lsm.predict(s*50)
+
+print(activation)
+
