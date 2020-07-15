@@ -22,7 +22,7 @@ class LSM:
         self.N_t = np.zeros((self.num_of_liquid_layer_neurons,)) #state vector
 
         self.liquid_weight_matrix = np.zeros((self.num_of_liquid_layer_neurons, self.num_of_liquid_layer_neurons)) #(From X To)
-        self.liquid_layer_neurons = [LIF(Vth=0.25, Vres=0, tau_m=10, tau_ref=1) for _ in range(self.num_of_liquid_layer_neurons)]
+        self.liquid_layer_neurons = [LIF(Vth=0.5, Vres=0, tau_m=20, Rm = 20, tau_ref=1) for _ in range(self.num_of_liquid_layer_neurons)]
 
         #Number of excitatory and inhibitory neurons and their ids
         num_of_excitatory_neurons = int((exc_to_inh_ratio/(1+exc_to_inh_ratio))*self.num_of_liquid_layer_neurons)
@@ -123,7 +123,7 @@ class LSM:
             temp_activation = []
             for idx, neuron in enumerate(self.liquid_layer_neurons):
                 
-                new_Vmem = neuron.RL_LSM_update(total_current[idx]) #Special update equation | As given in paper
+                new_Vmem = neuron.update(total_current[idx]) 
                 if new_Vmem == neuron.V_spike:
                     temp_activation.append(1)
                 else:
