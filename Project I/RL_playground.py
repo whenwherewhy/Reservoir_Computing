@@ -1,38 +1,41 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+import pickle
 from collections import deque
 
-from LSM import LSM
+from LSM_v2 import LSM
 from spike_encoding import spike_encoding
 
 import gym
 
 class Agent:
-    def __init__(self, state_space_size, state_space_bounds, action_space_size, reservoir_size):
+    def __init__(self, state_space_size, state_space_bounds, action_space_size, reservoir_size, epsilon_decay_time_constant):
         self.state_space_size = state_space_size
         self.action_space_size = action_space_size
 
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=5000)
         self.training_threshold = 100
         self.epsilon = 1
         self.epsilon_min = 0.001
-        self.epsilon_decay = 0.9999
+        self.epsilon_decay_time_constant = epsilon_decay_time_constant
         self.gamma = 0.85
         self.batch_size = 32
 
-        self.lsm = LSM(input_size=state_space_size, output_size=action_space_size, width=reservoir_size[0], height=reservoir_size[1])
-        self.lsm.reset()
+        self.lsm = LSM(input_size=state_space_size, output_size=action_space_size, width=reservoir_size[0], height=reservoir_size[1], depth=reservoir_size[2])
+        self.lsm.reset_states()
 
         self.spike_encoders = []
         for i in range(state_space_size):
-            self.spike_encoders.append(spike_encoding(scheme='rate_coding', time_window=100, input_range=state_space_bounds[i], output_freq_range=(10,200)))
+            self.spike_encoders.append(spike_encoding(scheme='poisson_rate_coding', time_window=100, input_range=state_space_bounds[i], output_freq_range=(10,200)))
+
+        self.spike_amplitude_scaling_constant = 50
         
     def get_spike_data(self, input_state):
         spike_train = []
         for idx,s in enumerate(input_state):            
             spike_train.append(self.spike_encoders[idx].encode(s.reshape(1,1))[0])
-        spike_train = np.asarray(spike_train) * 50
+        spike_train = np.asarray(spike_train) * self.spike_amplitude_scaling_constant
         return spike_train
 
     def get_q_values(self, input_state):
@@ -70,7 +73,7 @@ class Agent:
 
     def replay(self):
         if len(self.memory) > self.training_threshold:
-
+            
             #1. Randomly sample a mini_batch
             minibatch = random.sample(self.memory, self.batch_size)
 
@@ -90,7 +93,7 @@ class Agent:
             lsm_state = []
             for s in state:
                 spike_train = self.get_spike_data(s)
-                lsm_state.append(self.lsm.predict(spike_train, output='lsm_state'))
+                lsm_state.append(self.lsm.predict(spike_train, output='average_firing_rate'))
             lsm_state = np.asarray(lsm_state)
 
             target = self.get_q_values(state)
@@ -105,34 +108,57 @@ class Agent:
             #4. Update the readout network
             self.lsm.readout_network.fit(lsm_state, target, batch_size=32, epochs=1, shuffle=True, verbose=0)
 
-    def update_epsilon(self):
+    def update_epsilon(self,episode):
         if len(self.memory) > self.training_threshold:
             if self.epsilon > self.epsilon_min:
-                self.epsilon *= self.epsilon_decay
+                self.epsilon = np.exp(-episode/self.epsilon_decay_time_constant)
 
+    def save_lsm(self, path=''): 
+        lsm_parameters = [ self.lsm.input_weight_matrix, self.lsm.liquid_weight_matrix, self.lsm.readout_network.get_weights()]
+        
+        f = open(path+'best_lsm_model_parameters.pkl', 'wb')
+        pickle.dump(lsm_parameters, f)
+        f.close()
 
+    def load_lsm(self, path): #[ input weight matrix, liq layer weight matrix, readout weights]
+
+        f = open(path, 'rb')
+        parameters_list = pickle.load(f)
+        f.close()
+
+        self.lsm.input_weight_matrix = parameters_list[0]
+        self.lsm.liquid_weight_matrix = parameters_list[1]
+        self.lsm.readout_network.set_weights(parameters_list[2])        
+
+#---------------------------------------------------------------------------------------------------------------
+EPISODES = 1000
 
 env = gym.make('CartPole-v0')
+
 state_space_bounds = [(-2.4,2.4), (-255,255), (-41.8, 41.8), (-255,255)]
-agent = Agent(state_space_size=env.observation_space.shape[0], state_space_bounds=state_space_bounds, action_space_size=env.action_space.n, reservoir_size=(10,10))
+agent = Agent(state_space_size=env.observation_space.shape[0], 
+            state_space_bounds=state_space_bounds, 
+            action_space_size=env.action_space.n, 
+            reservoir_size=(5,5,6),
+            epsilon_decay_time_constant=EPISODES/2)
 
-EPISODES = 10
+#agent.load_lsm(path)
 
-state = env.reset()
+total_scores = []
+best_score = 0
 
-for e in range(EPISODES):
-    print('Episode:',e)
+for episode in range(EPISODES):
+    print('Episode:',episode, '| Epsilon:',agent.epsilon)
 
     state = env.reset()
-    agent.lsm.reset()
+    agent.lsm.reset_states()
 
     dead = False
     frames = 0
 
     while not dead:
-        env.render()
+        #env.render()
         frames += 1
-        print('.',end='')
 
         #1. Get action
         action = agent.get_action(state)
@@ -141,7 +167,7 @@ for e in range(EPISODES):
 
         #3. Penalise if agent dies before episode ends
         if dead and frames!=env._max_episode_steps-1:
-            reward = -100
+            reward = -10
 
         #4. Remember 
         agent.remember((state, action, reward, new_state, dead))
@@ -150,15 +176,18 @@ for e in range(EPISODES):
         if len(agent.memory) > agent.training_threshold:
             agent.replay()
 
-        #6. Update epsilon
-        agent.update_epsilon()
-
-        #7. Update state for next frame
+        #6. Update state for next frame
         state = new_state
 
         if dead:
             print('Score:', frames)
+            if frames > best_score:
+                agent.save_lsm()
+            total_scores.append(frames) 
+            plt.plot(total_scores)
+            plt.show()            
+            
+            #Update epsilon
+            agent.update_epsilon(episode)
     
-
 env.close()
-    
