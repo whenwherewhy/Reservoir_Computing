@@ -1,9 +1,12 @@
-from LSM_v2 import LSM
-from neuron_models import LIF
 import matplotlib.pyplot as plt
 import numpy as np
+
+from LSM_v2 import LSM
+from neuron_models import Dense_LIF
 from environment import Environment
 from spike_encoding import spike_encoding
+
+import time
 
 #Single neuron simulation---------------------------------------------------------------
 '''
@@ -83,14 +86,13 @@ N_t = np.asarray(N_t)
 #plt.show()
 
 #Poisson Rate coding simulation----------------------------------------------------------------------------
-
-
+'''
 encoder = spike_encoding(scheme='poisson_rate_coding')
 a = np.asarray([200, 100, 50, 150, 255])
 s = encoder.encode(np.expand_dims(a, axis=-1))
-
+'''
 #LSM V2 simulation----------------------------------------------------------------------------
-
+'''
 lsm = LSM(5,3,3,3,2)
 
 lsm.reset_states()
@@ -104,4 +106,52 @@ lsm.reset_states()
 activation = lsm.predict(s*50)
 
 print(activation)
+'''
+#LSM v2 time complexity----------------------------------------------------------------------------
+'''
+signal = np.random.uniform(0,1,200)
+signal[np.where(signal>0.2)] = 0
 
+act1 = signal.copy()
+act2 = signal.copy()
+
+start_time = time.time()
+for i in range(act1.shape[0]):
+	if act1[i] > 0:
+		act1[i] = 1
+print('Using loop: ',time.time()-start_time)
+
+start_time = time.time()
+act2[np.where(act2>0)] = 1
+print('Using numpy where(): ',time.time()-start_time)
+'''
+#Dense LIF layer test----------------------------------------------------------------------------
+n_neurons = 300
+timesteps = 200
+
+liquid_layer_neurons = Dense_LIF(n_neurons)
+neurons = [Dense_LIF(1) for _ in range(n_neurons)]
+
+I = np.random.randint(0,2,size=(n_neurons,timesteps))*50
+
+N_t = []
+start_time = time.time()
+for t in range(timesteps):
+    temp = []
+    for idx,n in enumerate(neurons):
+        temp.append(n.update_(I[idx,t]))
+    N_t.append(np.asarray(temp))
+print(time.time() - start_time)
+N_t = np.asarray(N_t)
+plt.plot(N_t.T[0])
+plt.show()
+
+
+N_t = []
+start_time = time.time()
+for t in range(timesteps):
+    N_t.append(liquid_layer_neurons.update(I[:,t])[1])
+print(time.time()-start_time)
+N_t = np.asarray(N_t)
+plt.plot(N_t.T[0])
+plt.show()

@@ -3,12 +3,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+import time
 
 from neuron_models import LIF
-from keras.layers import Dense, Input
-from keras.models import Model
 
-class LSM:
+#%tensorflow_version 2.x
+from tensorflow.python.keras.layers import Dense, Input
+from tensorflow.python.keras.models import Model
+
+class LSM(object):
     def __init__(self, input_size, width, height, depth, output_size, exc_to_inh_ratio=4, C=3, K=3):
                 
         self.input_size = input_size
@@ -101,17 +104,16 @@ class LSM:
 
         return model 
 
-    def reset_states(self):
+    def reset_state(self):
         #Reset Neurons
         for neuron in self.liquid_layer_neurons:
             neuron.reset()
 
         #Reset state vectors
         self.N_t = np.zeros((self.num_of_liquid_layer_neurons,)) #state vector
-        self.S_t = np.ones((self.num_of_liquid_layer_neurons,)) #STP vector
 
     def predict(self, input_state, output='q_values'):
-        
+
         activation = [] #activation of LSM over entire input spike train duration
 
         for t in range(input_state.shape[1]):
@@ -121,32 +123,35 @@ class LSM:
             total_current = input_current + past_current
 
             temp_activation = []
-            for idx, neuron in enumerate(self.liquid_layer_neurons):
-                
+            for idx, neuron in enumerate(self.liquid_layer_neurons):                
                 new_Vmem = neuron.update(total_current[idx]) 
+                
                 if new_Vmem == neuron.V_spike:
                     temp_activation.append(1)
                 else:
                     temp_activation.append(0)
-
+            
             self.N_t = np.asarray(temp_activation)             
-
             activation.append(self.N_t)
 
         activation = np.asarray(activation).T   #Shape : N x T
 
+
         #Calculate average firing rate of each neuron during the entire input duration
-        average_firing_rate = np.asarray([np.sum(activation[n,:])/input_state.shape[1] for n in range(activation.shape[0])])
+        average_firing_rate = np.sum(activation, axis=1) / input_state.shape[1]
 
         #Output
         if output == 'q_values':
             #Feed forward the obtained activations into Q_network
-            q_values = self.readout_network.predict(np.expand_dims(average_firing_rate, axis=0))
-            return q_values
+            return self.readout_network.predict(np.expand_dims(average_firing_rate, axis=0))
 
         elif output == 'average_firing_rate':
             #Return average firing rate of each liquid layer neuron
             return average_firing_rate
+
+        elif output == 'average_firing_rate_and_q_values':
+            #return both average firing rate and q_values
+            return [average_firing_rate, self.readout_network.predict(np.expand_dims(average_firing_rate, axis=0))]
 
         elif output == 'ST_lsm_state':
             #Return the spatiotemporal state of the lsm over input duration

@@ -23,7 +23,8 @@ class Agent:
         self.batch_size = 32
 
         self.lsm = LSM(input_size=state_space_size, output_size=action_space_size, width=reservoir_size[0], height=reservoir_size[1], depth=reservoir_size[2])
-        self.lsm.reset_states()
+        self.last_lsm_state = 0
+        self.lsm.reset_state()
 
         self.spike_encoders = []
         for i in range(state_space_size):
@@ -91,12 +92,17 @@ class Agent:
 
             #3. Prepare inputs and targets for readout layer
             lsm_state = []
+            target = []
             for s in state:
+                self.lsm.reset_state()
                 spike_train = self.get_spike_data(s)
-                lsm_state.append(self.lsm.predict(spike_train, output='average_firing_rate'))
+                avg_firing_rate, q_values = self.lsm.predict(spike_train, output='average_firing_rate_and_q_values')
+                lsm_state.append(avg_firing_rate)
+                target.append(q_values[0])
             lsm_state = np.asarray(lsm_state)
+            target = np.asarray(target)
 
-            target = self.get_q_values(state)
+            self.lsm.reset_state()
             next_state_q_value = self.get_q_values(next_state)
 
             for i in range(self.batch_size):
@@ -130,6 +136,22 @@ class Agent:
         self.lsm.liquid_weight_matrix = parameters_list[1]
         self.lsm.readout_network.set_weights(parameters_list[2])        
 
+    def save_lsm_state(self):
+        lsm_state = self.lsm.N_t
+        Vms = []
+        for neuron in self.lsm.liquid_layer_neurons:
+            Vms.append(neuron.Vm)
+
+        self.last_lsm_state = [lsm_state, Vms] 
+
+    def resume_lsm_state(self):
+        lsm_state, Vms = self.last_lsm_state[0], self.last_lsm_state[1]
+        
+        self.lsm.N_t = lsm_state
+        
+        for idx,neuron in enumerate(self.lsm.liquid_layer_neurons):
+            neuron.Vm = Vms[idx]
+
 #---------------------------------------------------------------------------------------------------------------
 EPISODES = 1000
 
@@ -151,7 +173,7 @@ for episode in range(EPISODES):
     print('Episode:',episode, '| Epsilon:',agent.epsilon)
 
     state = env.reset()
-    agent.lsm.reset_states()
+    agent.lsm.reset_state()
 
     dead = False
     frames = 0
@@ -174,15 +196,20 @@ for episode in range(EPISODES):
 
         #5. If enough memory collected --> Replay
         if len(agent.memory) > agent.training_threshold:
+            agent.save_lsm_state()
             agent.replay()
+            agent.resume_lsm_state()
 
         #6. Update state for next frame
         state = new_state
 
         if dead:
             print('Score:', frames)
+            
             if frames > best_score:
                 agent.save_lsm()
+                best_score = frames
+            
             total_scores.append(frames) 
             plt.plot(total_scores)
             plt.show()            
