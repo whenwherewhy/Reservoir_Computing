@@ -103,9 +103,9 @@ class Dense_LIF(object):
         return self.N_t, self.V_m, self.R_c
 
     def reset(self):
-        self.N_t = np.zeros((num_of_neurons,))
-        self.V_m = np.zeros((num_of_neurons,))
-        self.R_c = np.zeros((num_of_neurons,))   
+        self.N_t = np.zeros((self.num_of_neurons,))
+        self.V_m = np.zeros((self.num_of_neurons,))
+        self.R_c = np.zeros((self.num_of_neurons,))   
 
     def update_(self, I):
         if not self.ref:

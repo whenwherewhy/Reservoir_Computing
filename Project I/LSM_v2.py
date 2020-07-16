@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import random
 import time
 
-from neuron_models import LIF
+from neuron_models import Dense_LIF
 
 #%tensorflow_version 2.x
 from tensorflow.python.keras.layers import Dense, Input
@@ -25,7 +25,7 @@ class LSM(object):
         self.N_t = np.zeros((self.num_of_liquid_layer_neurons,)) #state vector
 
         self.liquid_weight_matrix = np.zeros((self.num_of_liquid_layer_neurons, self.num_of_liquid_layer_neurons)) #(From X To)
-        self.liquid_layer_neurons = [LIF(Vth=0.5, Vres=0, tau_m=20, Rm = 20, tau_ref=1) for _ in range(self.num_of_liquid_layer_neurons)]
+        self.liquid_layer_neurons = Dense_LIF(num_of_neurons = self.num_of_liquid_layer_neurons, Vth=0.5, V_rest=0, tau_m=20, Rm = 20, tau_ref=1)
 
         #Number of excitatory and inhibitory neurons and their ids
         num_of_excitatory_neurons = int((exc_to_inh_ratio/(1+exc_to_inh_ratio))*self.num_of_liquid_layer_neurons)
@@ -106,8 +106,7 @@ class LSM(object):
 
     def reset_state(self):
         #Reset Neurons
-        for neuron in self.liquid_layer_neurons:
-            neuron.reset()
+        self.liquid_layer_neurons.reset()
 
         #Reset state vectors
         self.N_t = np.zeros((self.num_of_liquid_layer_neurons,)) #state vector
@@ -121,21 +120,10 @@ class LSM(object):
             input_current = np.dot(self.input_weight_matrix, input_state[:,t])
             past_current = np.dot(self.liquid_weight_matrix.T, self.N_t) 
             total_current = input_current + past_current
-
-            temp_activation = []
-            for idx, neuron in enumerate(self.liquid_layer_neurons):                
-                new_Vmem = neuron.update(total_current[idx]) 
-                
-                if new_Vmem == neuron.V_spike:
-                    temp_activation.append(1)
-                else:
-                    temp_activation.append(0)
-            
-            self.N_t = np.asarray(temp_activation)             
+            self.N_t, _, _ = self.liquid_layer_neurons.update(total_current)            
             activation.append(self.N_t)
 
         activation = np.asarray(activation).T   #Shape : N x T
-
 
         #Calculate average firing rate of each neuron during the entire input duration
         average_firing_rate = np.sum(activation, axis=1) / input_state.shape[1]

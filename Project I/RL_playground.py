@@ -8,6 +8,16 @@ from LSM_v2 import LSM
 from spike_encoding import spike_encoding
 
 import gym
+import matplotlib.pyplot as plt
+import numpy as np
+import random
+import pickle
+from collections import deque
+
+from LSM_v2 import LSM
+from spike_encoding import spike_encoding
+
+import gym
 
 class Agent:
     def __init__(self, state_space_size, state_space_bounds, action_space_size, reservoir_size, epsilon_decay_time_constant):
@@ -42,10 +52,9 @@ class Agent:
     def get_q_values(self, input_state):
         if len(input_state.shape) == 2: #Batch input
             batch_q_values = []
-            for state in input_state:
+            for state in input_state:                   
                 #Convert input states to spike trains
                 spike_train = self.get_spike_data(state)
-                
                 #Pass it through LSM
                 q_values = self.lsm.predict(spike_train)
 
@@ -101,7 +110,7 @@ class Agent:
                 target.append(q_values[0])
             lsm_state = np.asarray(lsm_state)
             target = np.asarray(target)
-
+            
             self.lsm.reset_state()
             next_state_q_value = self.get_q_values(next_state)
 
@@ -137,21 +146,11 @@ class Agent:
         self.lsm.readout_network.set_weights(parameters_list[2])        
 
     def save_lsm_state(self):
-        lsm_state = self.lsm.N_t
-        Vms = []
-        for neuron in self.lsm.liquid_layer_neurons:
-            Vms.append(neuron.Vm)
-
-        self.last_lsm_state = [lsm_state, Vms] 
+        N_t, V_m, R_c = self.lsm.liquid_layer_neurons.N_t,self.lsm.liquid_layer_neurons.V_m,self.lsm.liquid_layer_neurons.R_c
+        self.last_lsm_state = [N_t, V_m, R_c] 
 
     def resume_lsm_state(self):
-        lsm_state, Vms = self.last_lsm_state[0], self.last_lsm_state[1]
-        
-        self.lsm.N_t = lsm_state
-        
-        for idx,neuron in enumerate(self.lsm.liquid_layer_neurons):
-            neuron.Vm = Vms[idx]
-
+        self.lsm.liquid_layer_neurons.N_t,self.lsm.liquid_layer_neurons.V_m,self.lsm.liquid_layer_neurons.R_c = self.last_lsm_state[0], self.last_lsm_state[1], self.last_lsm_state[2]
 #---------------------------------------------------------------------------------------------------------------
 EPISODES = 1000
 
@@ -161,7 +160,7 @@ state_space_bounds = [(-2.4,2.4), (-255,255), (-41.8, 41.8), (-255,255)]
 agent = Agent(state_space_size=env.observation_space.shape[0], 
             state_space_bounds=state_space_bounds, 
             action_space_size=env.action_space.n, 
-            reservoir_size=(5,5,6),
+            reservoir_size=(6,6,6),
             epsilon_decay_time_constant=EPISODES/2)
 
 #agent.load_lsm(path)
@@ -209,7 +208,7 @@ for episode in range(EPISODES):
             if frames > best_score:
                 agent.save_lsm()
                 best_score = frames
-            
+
             total_scores.append(frames) 
             plt.plot(total_scores)
             plt.show()            
