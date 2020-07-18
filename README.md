@@ -1,6 +1,7 @@
 # Reservoir_Computing : Liquid State Machine
 
-Implementation of a liquid state machine model using Leaky Integrate and Fire neuron model.
+Implementation of a liquid state machine (LSM) model using Leaky Integrate and Fire neuron model.
 
-
-Initial approach : 1D input vector, 2D liquid layer, 1D read-out layer
+#Project 1 : 
+- Implementing Deep Q learning using LSM as feature extractor and static dense layer as Action Decision model
+- Parallelized LIF Dense Layer implementation
