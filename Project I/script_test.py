@@ -86,27 +86,26 @@ N_t = np.asarray(N_t)
 #plt.show()
 
 #Poisson Rate coding simulation----------------------------------------------------------------------------
-'''
+
 encoder = spike_encoding(scheme='poisson_rate_coding')
-a = np.asarray([200, 100, 50, 150, 255])
-s = encoder.encode(np.expand_dims(a, axis=-1))
-'''
+a = np.asarray([[200, 100, 50, 150, 255],[0,0,0,0,0]])
+s = encoder.encode(a.T)
+print(s.shape)
 #LSM V2 simulation----------------------------------------------------------------------------
-'''
-lsm = LSM(5,3,3,3,2)
 
-lsm.reset_states()
-activation = lsm.predict(s*50, output='ST_lsm_state')
-print(activation.shape)
-plt.imshow(activation)
-plt.show()
+lsm = LSM(5,6,6,6,2, num_of_input_duplicates=10)
+#lsm_2 = LSM(5,6,6,6,2, num_of_input_duplicates=1)
 
-
-lsm.reset_states()
 activation = lsm.predict(s*50)
-
+#activation_2 = lsm_2.predict(s*50, output='ST_lsm_state')
 print(activation)
-'''
+#plt.subplot(2,1,1)
+#plt.imshow(activation)
+#plt.subplot(2,1,2)
+#plt.imshow(activation_2)
+#plt.show()
+
+
 #LSM v2 time complexity----------------------------------------------------------------------------
 '''
 signal = np.random.uniform(0,1,200)
@@ -126,6 +125,7 @@ act2[np.where(act2>0)] = 1
 print('Using numpy where(): ',time.time()-start_time)
 '''
 #Dense LIF layer test----------------------------------------------------------------------------
+'''
 n_neurons = 300
 timesteps = 200
 
@@ -155,3 +155,4 @@ print(time.time()-start_time)
 N_t = np.asarray(N_t)
 plt.plot(N_t.T[0])
 plt.show()
+'''

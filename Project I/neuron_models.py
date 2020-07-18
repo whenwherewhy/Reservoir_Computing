@@ -125,3 +125,72 @@ class Dense_LIF(object):
         self.Vm = self.V_rest
         self.ref = False
         self.refraction_counter = -1              
+
+
+class Dense_LIF_layer_for_batch_data(object):
+    def __init__(self, num_of_neurons, batch_size = 1, Vth=0.5, dt=0.001, V_rest=0, tau_ref=4, tau_m = -1, Rm=1, Cm=1):
+
+        #Layer variables - state vectors
+        self.num_of_neurons = num_of_neurons
+        self.N_t = np.zeros((batch_size, num_of_neurons))
+        self.V_m = np.zeros((batch_size, num_of_neurons))
+        self.R_c = np.zeros((batch_size, num_of_neurons))
+
+        #Misc. vectors
+        self.zeros = np.zeros((batch_size, num_of_neurons))
+        
+        #simulation parameters
+        self.dt = dt                         #(seconds)
+
+        #LIF neuron parameters
+        self.V_rest = V_rest                     #resting potential (mV)
+        self.tau_ref = tau_ref               #(ms) : refractory period
+        self.Vth = Vth                       #(mV)
+        self.Rm = Rm                         
+        self.Cm = Cm                          
+        self.V_spike = Vth+0.5                                  #spike delta (mV)
+        self.tau_m = self.Rm * self.Cm if tau_m==-1 else tau_m  #(ms)
+
+    def update_on_batch(self, I):
+
+        assert len(I.shape) == 2     #I shape : (batch_size, num_of_neurons)
+
+        V_m = self.V_m + ((I*self.Rm + self.V_rest - self.V_m)/self.tau_m)*self.dt
+        
+        R_f = (self.R_c.astype(bool)).astype(int)
+        
+        V_m_prime = (1 - R_f)*V_m + R_f*self.V_rest
+        
+        S = ((np.maximum(self.zeros, V_m_prime - self.Vth)).astype(bool)).astype(int)
+        
+        self.N_t = S * self.V_spike
+
+        self.V_m = np.multiply((1-S),V_m_prime) + self.N_t
+
+        R_c_prime = self.R_c - R_f
+
+        self.R_c = (S * self.tau_ref) + R_c_prime
+
+        return self.N_t, self.V_m, self.R_c
+
+    def reset(self):
+        self.N_t = np.zeros((batch_size, num_of_neurons))
+        self.V_m = np.zeros((batch_size, num_of_neurons))
+        self.R_c = np.zeros((batch_size, num_of_neurons))        
+
+    '''
+    n_neurons = 300
+    timesteps = 200
+
+    liquid_layer_neurons = Dense_LIF(n_neurons, batch_size=10)
+
+    I = np.random.randint(0,2,size=(10,n_neurons,timesteps))*50
+
+    N_t = []
+
+    for t in range(timesteps):
+        N_t.append(np.expand_dims(liquid_layer_neurons.update_on_batch(I[:,:,t])[1], axis=-1))
+
+    N_t = np.concatenate(N_t, axis=-1)
+    N_t.shape
+    '''

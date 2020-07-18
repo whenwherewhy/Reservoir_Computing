@@ -19,18 +19,19 @@ from spike_encoding import spike_encoding
 
 import gym
 
+
 class Agent:
     def __init__(self, state_space_size, state_space_bounds, action_space_size, reservoir_size, epsilon_decay_time_constant):
         self.state_space_size = state_space_size
         self.action_space_size = action_space_size
 
-        self.memory = deque(maxlen=5000)
-        self.training_threshold = 100
+        self.memory = deque(maxlen=100000)
         self.epsilon = 1
         self.epsilon_min = 0.001
         self.epsilon_decay_time_constant = epsilon_decay_time_constant
-        self.gamma = 0.85
+        self.gamma = 0.95
         self.batch_size = 32
+        self.training_threshold = 100
 
         self.lsm = LSM(input_size=state_space_size, output_size=action_space_size, width=reservoir_size[0], height=reservoir_size[1], depth=reservoir_size[2])
         self.last_lsm_state = 0
@@ -51,34 +52,30 @@ class Agent:
 
     def get_q_values(self, input_state):
         if len(input_state.shape) == 2: #Batch input
-            batch_q_values = []
+            #Convert input states to batched spike trains
+            batch_spike_data = []
             for state in input_state:                   
-                #Convert input states to spike trains
-                spike_train = self.get_spike_data(state)
-                #Pass it through LSM
-                q_values = self.lsm.predict(spike_train)
+                batch_spike_data.append(self.get_spike_data(state))
+            #Obtain Q values in batch
+            batch_q_values = self.lsm.predict_on_batch(np.asarray(batch_spike_data))
+            return batch_q_values
 
-                batch_q_values.append(q_values[0])
-
-            return np.asarray(batch_q_values)
-        
         else: #Single input
             #Convert input states to spike trains
-            spike_train = self.get_spike_data(input_state)
-            
+            spike_train = self.get_spike_data(input_state)            
             #Pass it through LSM
             q_values = self.lsm.predict(spike_train)            
             return q_values
 
-    def get_action(self, input_state):
-        #Epsilon greedy here
-        if random.uniform(0,1) < self.epsilon:
+    def get_action(self, input_state, epsilon = None):
+        epsilon = self.epsilon if epsilon==None else epsilon
+
+        if random.uniform(0,1) < epsilon:
             return np.random.randint(0, self.action_space_size, 1)[0]
         else:
             return np.argmax(self.get_q_values(input_state)) 
 
     def remember(self, info):
-
         self.memory.append(info)
 
     def replay(self):
@@ -100,16 +97,14 @@ class Agent:
                 dead.append(minibatch[i][4])
 
             #3. Prepare inputs and targets for readout layer
-            lsm_state = []
+            lsm_states = []
             target = []
+            batch_spike_data =[]
             for s in state:
-                self.lsm.reset_state()
                 spike_train = self.get_spike_data(s)
-                avg_firing_rate, q_values = self.lsm.predict(spike_train, output='average_firing_rate_and_q_values')
-                lsm_state.append(avg_firing_rate)
-                target.append(q_values[0])
-            lsm_state = np.asarray(lsm_state)
-            target = np.asarray(target)
+                batch_spike_data.append(spike_train)
+            self.lsm.reset_state()
+            lsm_states, target = self.lsm.predict_on_batch(np.asarray(batch_spike_data), output='average_firing_rate_and_q_values')
             
             self.lsm.reset_state()
             next_state_q_value = self.get_q_values(next_state)
@@ -121,7 +116,7 @@ class Agent:
                     target[i][action[i]] = reward[i] + self.gamma*(np.max(next_state_q_value[i]))
 
             #4. Update the readout network
-            self.lsm.readout_network.fit(lsm_state, target, batch_size=32, epochs=1, shuffle=True, verbose=0)
+            self.lsm.readout_network.train_on_batch(lsm_states, target)
 
     def update_epsilon(self,episode):
         if len(self.memory) > self.training_threshold:
@@ -152,7 +147,7 @@ class Agent:
     def resume_lsm_state(self):
         self.lsm.liquid_layer_neurons.N_t,self.lsm.liquid_layer_neurons.V_m,self.lsm.liquid_layer_neurons.R_c = self.last_lsm_state[0], self.last_lsm_state[1], self.last_lsm_state[2]
 #---------------------------------------------------------------------------------------------------------------
-EPISODES = 1000
+EPISODES = 100000
 
 env = gym.make('CartPole-v0')
 
@@ -163,13 +158,16 @@ agent = Agent(state_space_size=env.observation_space.shape[0],
             reservoir_size=(6,6,6),
             epsilon_decay_time_constant=EPISODES/2)
 
-#agent.load_lsm(path)
-
 total_scores = []
-best_score = 0
+median_accumulated_reward = []
+total_evaluation_scores = []
 
-for episode in range(EPISODES):
-    print('Episode:',episode, '| Epsilon:',agent.epsilon)
+prev_eval_score = 0
+prev_eval_marker = 0
+
+while np.sum(total_scores) < 100000:   #Run episodes only till 1e5 timesteps
+
+    print('Total_timesteps:', np.sum(total_scores), '| Epsilon:',agent.epsilon)
 
     state = env.reset()
     agent.lsm.reset_state()
@@ -183,6 +181,7 @@ for episode in range(EPISODES):
 
         #1. Get action
         action = agent.get_action(state)
+
         #2. Perform action
         new_state, reward, dead, info = env.step(action)
 
@@ -193,27 +192,67 @@ for episode in range(EPISODES):
         #4. Remember 
         agent.remember((state, action, reward, new_state, dead))
 
-        #5. If enough memory collected --> Replay
+        #6. Update state for next frame
+        state = new_state
+        
+        #7. Replay
         if len(agent.memory) > agent.training_threshold:
             agent.save_lsm_state()
             agent.replay()
             agent.resume_lsm_state()
-
-        #6. Update state for next frame
-        state = new_state
-
+        
         if dead:
-            print('Score:', frames)
-            
-            if frames > best_score:
-                agent.save_lsm()
-                best_score = frames
+            total_scores.append(frames)         
+      
+    #Evaluate agent after every 1000 timesteps(/frames)
+    if np.sum(total_scores) > prev_eval_score + 1000:
 
-            total_scores.append(frames) 
-            plt.plot(total_scores)
-            plt.show()            
-            
-            #Update epsilon
-            agent.update_epsilon(episode)
+
+        median_accumulated_reward.append(np.median(total_scores[prev_eval_marker:]))
+        print('Median Accumulated Reward in last 1000 timesteps:',median_accumulated_reward[-1])
+        prev_eval_marker = len(total_scores)
+        
+        print('Evaluating...')
+        
+        agent.save_lsm()
+        prev_eval_score = np.sum(total_scores)
+        agent.epsilon -= 0.02
+
+        eval_scores, num_of_games = 0, 0
+        
+        while eval_scores < 1000:   #Evaluate for 1000 timesteps
+            print('.',end='')
+
+            state = env.reset()
+            agent.lsm.reset_state()
+            score = 0
+            dead = False
+
+            while not dead:
+                #Get action
+                action = agent.get_action(state, epsilon = 0.05) #Exploit
+                #2. Perform action
+                new_state, reward, dead, info = env.step(action)
+                #Update state
+                state = new_state
+
+                #Accumulate score over this gameplay
+                score += 1
+
+                if dead:
+                    eval_scores += score
+                    num_of_games += 1
+        print()
+        total_evaluation_scores.append(eval_scores/num_of_games)
+        print('Evaluation Score: ', total_evaluation_scores[-1])
+
+        plt.subplot(1,2,1)
+        plt.title('Median accumulated Reward')
+        plt.plot(median_accumulated_reward)
+        plt.subplot(1,2,2)
+        plt.title('Evaluation scores')
+        plt.plot(total_evaluation_scores)
+        plt.show()
+
     
 env.close()
