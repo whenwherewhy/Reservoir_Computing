@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 import torch.optim as optim
+from torch_neuron_models import torch_Dense_LIF
 
 class torch_LSM(object):
     def __init__(self, input_size, width, height, depth, output_size, batch_size = 1, num_of_input_duplicates=10, exc_to_inh_ratio=4, C=4, K=4):
@@ -23,6 +24,7 @@ class torch_LSM(object):
         #Number of excitatory and inhibitory neurons and their ids
         num_of_excitatory_neurons = int((exc_to_inh_ratio/(1+exc_to_inh_ratio))*self.num_of_liquid_layer_neurons)
         num_of_inhibitory_neurons = self.num_of_liquid_layer_neurons - num_of_excitatory_neurons
+        self.num_of_excitatory_neurons = num_of_excitatory_neurons
 
         excitatory_neurons_ids = random.sample(list(range(self.num_of_liquid_layer_neurons)), num_of_excitatory_neurons)
         inhibitory_neurons_ids = list(set(list(range(self.num_of_liquid_layer_neurons))).difference(excitatory_neurons_ids))
@@ -88,7 +90,7 @@ class torch_LSM(object):
                     self.input_weight_matrix[neuron_id, r] = random.uniform(0, 0.6)
         
         #Read-Out Layer-----------------------------------------------
-        self.readout_network = get_readout_network(input_size = num_of_excitatory_neurons, hidden_size = 32, output_size = output_size)
+        self.readout_network = get_readout_network(input_size = num_of_excitatory_neurons, hidden_size = num_of_excitatory_neurons, output_size = output_size)
         self.readout_optimizer = optim.RMSprop(self.readout_network.parameters(), lr=0.0002)
         self.criterion = nn.MSELoss()
 
@@ -100,6 +102,7 @@ class torch_LSM(object):
         activation = [] #activation of LSM over entire input spike train duration
         if not torch.is_tensor(input_state):
             input_state = torch.from_numpy(input_state)
+        input_state = input_state.float()            
         for t in range(input_state.size()[-1]):          
             pseudo_input_current = torch.matmul(self.pseudo_input_weight_matrix, input_state[:,t])
             input_current = torch.matmul(self.input_weight_matrix, pseudo_input_current)
@@ -130,12 +133,12 @@ class torch_LSM(object):
             #Return the spatiotemporal state of the lsm over input duration
             return activation        
 
-    def predict_on_batch(self, input_state, output='q_values'):    #Input shape : (batch_size, num_of_neurons, timesteps)
+    def predict_on_batch(self, input_state, output='q_values', network='q_network'):    #Input shape : (batch_size, num_of_neurons, timesteps)
         if not torch.is_tensor(input_state):
             input_state = torch.from_numpy(input_state)
+        input_state = input_state.float()
         batch_size = input_state.size()[0]
         N_t = torch.zeros(self.num_of_liquid_layer_neurons, batch_size) #state vector
-        #LIF_N_t = torch.zeros(self.num_of_liquid_layer_neurons, batch_size)
         LIF_V_m = torch.zeros(self.num_of_liquid_layer_neurons, batch_size)
         LIF_R_c = torch.zeros(self.num_of_liquid_layer_neurons, batch_size)          
         
@@ -156,15 +159,17 @@ class torch_LSM(object):
         #Output
         if output == 'q_values':
             #Feed forward the obtained activations into Q_network
-            return self.readout_network(average_firing_rate)
+            q = self.readout_network(average_firing_rate)
+            return q
 
         elif output == 'average_firing_rate':
             #Return average firing rate of each liquid layer neuron
             return average_firing_rate
 
         elif output == 'average_firing_rate_and_q_values':
-            #return both average firing rate and q_values
-            return [average_firing_rate, self.readout_network(average_firing_rate)]
+            #return both average firing rate and q_values 
+            q = self.readout_network(average_firing_rate)
+            return [average_firing_rate, q]
 
     def train_readout_network(self, inputs, targets):
         
